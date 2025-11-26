@@ -9,9 +9,7 @@ const Footer = () => {
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-blue to-primary flex items-center justify-center shadow-glow-blue">
                 <Package className="w-6 h-6 text-white" />
               </div>
-              <h3 className="text-xl font-bold bg-gradient-to-r from-brand-blue to-primary bg-clip-text text-transparent">
-                Hesap Market   
-              </h3>
+              <h3 className="text-xl font-bold bg-gradient-to-r from-brand-blue to-primary bg-clip-text text-transparent">Not Shop</h3>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               Güvenli oyun hesabı ve dijital içerik alım satım platformu
@@ -75,10 +73,8 @@ const Footer = () => {
 
         <div className="pt-8 border-t border-glass-border">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-muted-foreground">
-            <p>© 2025 Hesap Market. Tüm hakları saklıdır.</p>
-            <p className="text-xs">
-              Bu platform oyun hesapları ve dijital içerikler için güvenli bir pazar yeridir.
-            </p>
+            <p>© 2025 Not Shop. Tüm hakları saklıdır.</p>
+            <p className="text-xs">Swax Tech Yazılım - İtemPazar</p>
           </div>
         </div>
       </div>

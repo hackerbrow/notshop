@@ -5,49 +5,53 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Session } from "@supabase/supabase-js";
-
 const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-
-  const { data: profileData } = useQuery({
+  const {
+    data: profileData
+  } = useQuery({
     queryKey: ["profile-with-wallet", session?.user?.id],
     enabled: !!session?.user?.id,
     queryFn: async () => {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", session!.user.id)
-        .single();
-      
-      const { data: wallet } = await supabase
-        .from("wallets")
-        .select("balance")
-        .eq("user_id", session!.user.id)
-        .single();
-      
-      return { ...profile, balance: wallet?.balance || 0 };
+      const {
+        data: profile
+      } = await supabase.from("profiles").select("*").eq("id", session!.user.id).single();
+      const {
+        data: wallet
+      } = await supabase.from("wallets").select("balance").eq("user_id", session!.user.id).single();
+      return {
+        ...profile,
+        balance: wallet?.balance || 0
+      };
     }
   });
-
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({
+      data: {
+        session
+      }
+    }) => {
       setSession(session);
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: {
+        subscription
+      }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({
+        queryKey: ["profile"]
+      });
     });
-
     return () => subscription.unsubscribe();
   }, [queryClient]);
-
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 10);
@@ -63,9 +67,7 @@ const Navbar = () => {
             <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-brand-blue to-primary flex items-center justify-center shadow-glow-blue">
               <Package className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-brand-blue to-primary bg-clip-text text-transparent">
-              Hesap Market  
-            </span>
+            <span className="text-xl font-bold bg-gradient-to-r from-brand-blue to-primary bg-clip-text text-transparent">Not Shop</span>
           </div>
 
           {/* Desktop Navigation */}
