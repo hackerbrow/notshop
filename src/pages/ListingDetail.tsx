@@ -35,7 +35,7 @@ const ListingDetail = () => {
       const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
-        .eq("user_id", listingData.user_id)
+        .eq("id", listingData.user_id)
         .maybeSingle();
 
       const { data: categoryData } = await supabase
@@ -54,7 +54,7 @@ const ListingDetail = () => {
       // Increment view count
       await supabase
         .from("listings")
-        .update({ view_count: (listingData.view_count || 0) + 1 })
+        .update({ views: (listingData.views || 0) + 1 })
         .eq("id", id);
 
       return { ...listingData, profile: profileData, category: categoryData, seller_role: roleData };
@@ -69,12 +69,12 @@ const ListingDetail = () => {
     },
   });
 
-  const { data: userProfile } = useQuery({
-    queryKey: ["profile", session?.user?.id],
+  const { data: userWallet } = useQuery({
+    queryKey: ["wallet", session?.user?.id],
     enabled: !!session?.user?.id,
     queryFn: async () => {
       const { data } = await supabase
-        .from("profiles")
+        .from("wallets")
         .select("balance")
         .eq("user_id", session!.user.id)
         .maybeSingle();
@@ -105,7 +105,7 @@ const ListingDetail = () => {
       return;
     }
 
-    if (session.user.id === listing.user_id) {
+    if (listing && session.user.id === listing.user_id) {
       toast({
         title: "Hata",
         description: "Kendinize mesaj gönderemezsiniz",
@@ -114,7 +114,9 @@ const ListingDetail = () => {
       return;
     }
 
-    navigate(`/messages?user=${listing.user_id}`);
+    if (listing) {
+      navigate(`/messages?user=${listing.user_id}`);
+    }
   };
 
   const handlePurchaseWithBalance = async () => {
@@ -128,7 +130,7 @@ const ListingDetail = () => {
       return;
     }
 
-    if (session.user.id === listing.user_id) {
+    if (listing && session.user.id === listing.user_id) {
       toast({
         title: "Hata",
         description: "Kendi ilanınızı satın alamazsınız",
@@ -145,7 +147,7 @@ const ListingDetail = () => {
 
       const { data, error } = await supabase.functions.invoke('purchase-with-balance', {
         body: {
-          listing_id: listing.id,
+          listing_id: listing?.id,
         }
       });
 
@@ -181,7 +183,7 @@ const ListingDetail = () => {
       return;
     }
 
-    if (session.user.id === listing.user_id) {
+    if (listing && session.user.id === listing.user_id) {
       toast({
         title: "Hata",
         description: "Kendi ilanınızı satın alamazsınız",
@@ -189,6 +191,8 @@ const ListingDetail = () => {
       });
       return;
     }
+
+    if (!listing) return;
 
     try {
       toast({
@@ -203,8 +207,7 @@ const ListingDetail = () => {
           buyer_id: session.user.id,
           seller_id: listing.user_id,
           listing_id: listing.id,
-          price: listing.price,
-          commission: listing.price * 0.1,
+          amount: listing.price,
           status: 'pending'
         })
         .select()
@@ -244,10 +247,6 @@ const ListingDetail = () => {
     }
   };
 
-  const handleMessage = () => {
-    navigate("/messages");
-  };
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -274,6 +273,8 @@ const ListingDetail = () => {
     );
   }
 
+  const userBalance = userWallet?.balance || 0;
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -298,7 +299,7 @@ const ListingDetail = () => {
               </div>
               {listing.images && listing.images.length > 1 && (
                 <div className="p-4 flex gap-2 overflow-x-auto">
-                  {listing.images.map((img, idx) => (
+                  {listing.images.map((img: string, idx: number) => (
                     <button
                       key={idx}
                       onClick={() => setSelectedImage(idx)}
@@ -319,16 +320,6 @@ const ListingDetail = () => {
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground whitespace-pre-wrap">{listing.description}</p>
-                
-                {listing.tags && listing.tags.length > 0 && (
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    {listing.tags.map((tag, idx) => (
-                      <Badge key={idx} variant="secondary">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
               </CardContent>
             </Card>
           </div>
@@ -346,7 +337,7 @@ const ListingDetail = () => {
                       </Badge>
                     )}
                   </div>
-                  {listing.featured && (
+                  {listing.is_featured && (
                     <Badge className="bg-gradient-to-r from-brand-blue to-primary">
                       Öne Çıkan
                     </Badge>
@@ -361,20 +352,17 @@ const ListingDetail = () => {
                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Eye className="w-4 h-4" />
-                    <span>{listing.view_count} görüntülenme</span>
+                    <span>{listing.views || 0} görüntülenme</span>
                   </div>
-                  {listing.platform && (
-                    <Badge variant="outline">{listing.platform}</Badge>
-                  )}
                 </div>
 
                 <Separator />
 
-                {session && userProfile && (
+                {session && (
                   <div className="p-3 rounded-lg bg-brand-blue/10 border border-brand-blue/30">
                     <p className="text-sm text-muted-foreground mb-1">Mevcut Bakiyeniz</p>
                     <p className="text-2xl font-bold text-brand-blue">
-                      ₺{Number(userProfile.balance || 0).toFixed(2)}
+                      ₺{Number(userBalance).toFixed(2)}
                     </p>
                   </div>
                 )}
@@ -386,10 +374,10 @@ const ListingDetail = () => {
                         onClick={handlePurchaseWithBalance}
                         className="w-full bg-gradient-to-r from-brand-blue to-primary hover:opacity-90 shadow-glow-blue"
                         size="lg"
-                        disabled={!userProfile || userProfile.balance < listing.price}
+                        disabled={userBalance < listing.price}
                       >
                         <Shield className="w-5 h-5 mr-2" />
-                        {userProfile && userProfile.balance < listing.price 
+                        {userBalance < listing.price 
                           ? "Yetersiz Bakiye" 
                           : "Bakiye ile Satın Al"}
                       </Button>
@@ -439,7 +427,7 @@ const ListingDetail = () => {
                   <h3 className="font-semibold mb-3">Satıcı Bilgileri</h3>
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-dark-surface/50">
                     <Avatar>
-                      <AvatarImage src={listing.profile?.avatar_url} />
+                      <AvatarImage src={listing.profile?.avatar_url || undefined} />
                       <AvatarFallback>
                         <User className="w-5 h-5" />
                       </AvatarFallback>
@@ -466,13 +454,13 @@ const ListingDetail = () => {
                       </div>
                       <div className="flex items-center gap-1 text-sm">
                         <Star className="w-4 h-4 fill-success-green text-success-green" />
-                        <span>{Number(listing.profile?.seller_score || 0).toFixed(2)}</span>
+                        <span>{Number(listing.profile?.rating || 0).toFixed(2)}</span>
                         <span className="text-muted-foreground">
                           ({listing.profile?.total_sales || 0} satış)
                         </span>
                       </div>
                     </div>
-                    {listing.profile?.verified && (
+                    {listing.profile?.is_verified && (
                       <Badge className="bg-success-green/10 text-success-green">
                         Doğrulanmış
                       </Badge>

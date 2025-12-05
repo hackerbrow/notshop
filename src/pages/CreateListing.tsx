@@ -43,7 +43,7 @@ const CreateListing = () => {
   const { data: categories } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const { data } = await supabase.from("categories").select("*").eq("active", true);
+      const { data } = await supabase.from("categories").select("*").eq("is_active", true);
       return data;
     },
   });

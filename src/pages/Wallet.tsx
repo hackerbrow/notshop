@@ -8,41 +8,36 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Wallet as WalletIcon, CreditCard, ArrowDownToLine, TrendingUp } from "lucide-react";
+import { Wallet as WalletIcon, CreditCard, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
 const Wallet = () => {
   const navigate = useNavigate();
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
   const [balanceKey, setBalanceKey] = useState("");
-  const {
-    data: session
-  } = useQuery({
+
+  const { data: session } = useQuery({
     queryKey: ["session"],
     queryFn: async () => {
-      const {
-        data
-      } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.getSession();
       return data.session;
     }
   });
-  const { data: profile } = useQuery({
-    queryKey: ["profile", session?.user?.id],
+
+  const { data: wallet } = useQuery({
+    queryKey: ["wallet", session?.user?.id],
     enabled: !!session?.user?.id,
     queryFn: async () => {
       const { data } = await supabase
-        .from("profiles")
-        .select("*")
+        .from("wallets")
+        .select("balance")
         .eq("user_id", session!.user.id)
         .maybeSingle();
       return data;
     },
   });
 
-  const {
-    data: settings
-  } = useQuery({
+  const { data: settings } = useQuery({
     queryKey: ['site-settings'],
     queryFn: async () => {
       const { data } = await supabase
@@ -53,14 +48,17 @@ const Wallet = () => {
   });
 
   const shopierEnabled = settings?.find(s => s.key === 'shopier_enabled')?.value === 'true';
+
   useEffect(() => {
     if (!session) {
       navigate("/auth");
     }
   }, [session, navigate]);
+
   const handleDepositRedirect = () => {
     window.open('https://www.shopier.com/steampanel/41348733', '_blank');
   };
+
   const handleRedeemKey = async () => {
     if (!balanceKey.trim()) {
       toast({
@@ -71,10 +69,7 @@ const Wallet = () => {
       return;
     }
     try {
-      const {
-        data,
-        error
-      } = await supabase.functions.invoke('redeem-balance-key', {
+      const { data, error } = await supabase.functions.invoke('redeem-balance-key', {
         body: {
           key_code: balanceKey.trim()
         }
@@ -86,7 +81,6 @@ const Wallet = () => {
           description: data.message
         });
         setBalanceKey("");
-        // Refresh profile data
         window.location.reload();
       } else {
         toast({
@@ -103,7 +97,11 @@ const Wallet = () => {
       });
     }
   };
-  return <div className="min-h-screen bg-background">
+
+  const balance = wallet?.balance || 0;
+
+  return (
+    <div className="min-h-screen bg-background">
       <Navbar />
 
       <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -120,7 +118,7 @@ const Wallet = () => {
               <div>
                 <p className="text-sm text-muted-foreground mb-2">Mevcut Bakiye</p>
                 <p className="text-4xl font-bold text-brand-blue">
-                  ₺{Number(profile?.balance || 0).toFixed(2)}
+                  ₺{Number(balance).toFixed(2)}
                 </p>
               </div>
               <WalletIcon className="w-16 h-16 text-brand-blue opacity-20" />
@@ -217,6 +215,8 @@ const Wallet = () => {
       </div>
 
       <Footer />
-    </div>;
+    </div>
+  );
 };
+
 export default Wallet;

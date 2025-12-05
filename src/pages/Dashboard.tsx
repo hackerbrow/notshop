@@ -29,6 +29,19 @@ const Dashboard = () => {
       const { data } = await supabase
         .from("profiles")
         .select("*")
+        .eq("id", session!.user.id)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  const { data: wallet } = useQuery({
+    queryKey: ["wallet", session?.user?.id],
+    enabled: !!session?.user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("wallets")
+        .select("balance")
         .eq("user_id", session!.user.id)
         .maybeSingle();
       return data;
@@ -43,7 +56,6 @@ const Dashboard = () => {
         .from("listings")
         .select("*")
         .eq("user_id", session!.user.id)
-        .order("boosted_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false });
       return data;
     },
@@ -63,7 +75,7 @@ const Dashboard = () => {
 
       toast({
         title: "Başarılı",
-        description: `İlanınız yukarı taşındı. Kalan hakkınız: ${4 - boostCount}`,
+        description: "İlanınız yukarı taşındı",
       });
 
       refetchListings();
@@ -87,7 +99,7 @@ const Dashboard = () => {
     totalListings: listings?.length || 0,
     activeListings: listings?.filter((l) => l.status === "active").length || 0,
     totalViews: listings?.reduce((sum, l) => sum + (l.views || 0), 0) || 0,
-    balance: profile?.balance || 0,
+    balance: wallet?.balance || 0,
   };
 
   return (
