@@ -25,11 +25,11 @@ interface Conversation {
 
 interface Message {
   id: string;
-  body: string;
-  from_user_id: string;
-  to_user_id: string;
+  content: string;
+  sender_id: string;
+  receiver_id: string;
   created_at: string;
-  read: boolean;
+  is_read: boolean;
 }
 
 const Messages = () => {
@@ -59,7 +59,7 @@ const Messages = () => {
       const { data: messages, error } = await supabase
         .from("messages")
         .select("*")
-        .or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`)
+        .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -67,15 +67,15 @@ const Messages = () => {
       // Get unique user IDs from messages
       const userIds = new Set<string>();
       messages?.forEach((msg: any) => {
-        userIds.add(msg.from_user_id);
-        userIds.add(msg.to_user_id);
+        userIds.add(msg.sender_id);
+        userIds.add(msg.receiver_id);
       });
 
       // Fetch all user profiles
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, username, avatar_url, total_sales")
-        .in("user_id", Array.from(userIds));
+        .select("id, username, avatar_url, total_sales")
+        .in("id", Array.from(userIds));
 
       // Fetch user roles
       const { data: roles } = await supabase
@@ -83,14 +83,14 @@ const Messages = () => {
         .select("user_id, role")
         .in("user_id", Array.from(userIds));
 
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p]));
+      const profileMap = new Map(profiles?.map(p => [p.id, p]));
       const roleMap = new Map(roles?.map(r => [r.user_id, r.role]));
 
       // Group by conversation partner
       const conversationMap = new Map<string, Conversation>();
       
       messages?.forEach((msg: any) => {
-        const partnerId = msg.from_user_id === userId ? msg.to_user_id : msg.from_user_id;
+        const partnerId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
         const partnerProfile = profileMap.get(partnerId);
         const partnerRole = roleMap.get(partnerId);
         
@@ -98,17 +98,17 @@ const Messages = () => {
           conversationMap.set(partnerId, {
             user_id: partnerId,
             username: partnerProfile?.username || "Kullanıcı",
-            avatar_url: partnerProfile?.avatar_url,
-            total_sales: partnerProfile?.total_sales,
+            avatar_url: partnerProfile?.avatar_url || null,
+            total_sales: partnerProfile?.total_sales || null,
             role: partnerRole || null,
-            last_message: msg.body,
+            last_message: msg.content,
             last_message_time: msg.created_at,
             unread_count: 0,
           });
         }
         
         // Count unread messages
-        if (msg.to_user_id === userId && !msg.read) {
+        if (msg.receiver_id === userId && !msg.is_read) {
           const conv = conversationMap.get(partnerId)!;
           conv.unread_count++;
         }
@@ -135,8 +135,8 @@ const Messages = () => {
         .from("messages")
         .select("*")
         .or(
-          `and(from_user_id.eq.${session!.user.id},to_user_id.eq.${selectedConversation}),` +
-          `and(from_user_id.eq.${selectedConversation},to_user_id.eq.${session!.user.id})`
+          `and(sender_id.eq.${session!.user.id},receiver_id.eq.${selectedConversation}),` +
+          `and(sender_id.eq.${selectedConversation},receiver_id.eq.${session!.user.id})`
         )
         .order("created_at", { ascending: true });
 
@@ -145,9 +145,9 @@ const Messages = () => {
       // Mark messages as read
       await supabase
         .from("messages")
-        .update({ read: true })
-        .eq("to_user_id", session!.user.id)
-        .eq("from_user_id", selectedConversation);
+        .update({ is_read: true })
+        .eq("receiver_id", session!.user.id)
+        .eq("sender_id", selectedConversation);
 
       return data as Message[];
     },
@@ -161,7 +161,7 @@ const Messages = () => {
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select("username, avatar_url, total_sales")
-        .eq("user_id", selectedConversation)
+        .eq("id", selectedConversation)
         .maybeSingle();
       
       if (profileError) throw profileError;
@@ -178,13 +178,13 @@ const Messages = () => {
 
   // Send message mutation
   const sendMessageMutation = useMutation({
-    mutationFn: async (body: string) => {
+    mutationFn: async (content: string) => {
       const { error } = await supabase
         .from("messages")
         .insert({
-          from_user_id: session!.user.id,
-          to_user_id: selectedConversation!,
-          body,
+          sender_id: session!.user.id,
+          receiver_id: selectedConversation!,
+          content,
         });
 
       if (error) throw error;
@@ -215,7 +215,7 @@ const Messages = () => {
           event: "INSERT",
           schema: "public",
           table: "messages",
-          filter: `to_user_id=eq.${session.user.id}`,
+          filter: `receiver_id=eq.${session.user.id}`,
         },
         () => {
           queryClient.invalidateQueries({ queryKey: ["messages"] });
@@ -370,22 +370,22 @@ const Messages = () => {
                       <div
                         key={msg.id}
                         className={`flex ${
-                          msg.from_user_id === session?.user?.id
+                          msg.sender_id === session?.user?.id
                             ? "justify-end"
                             : "justify-start"
                         }`}
                       >
                         <div
                           className={`max-w-[70%] p-3 rounded-lg ${
-                            msg.from_user_id === session?.user?.id
+                            msg.sender_id === session?.user?.id
                               ? "bg-brand-blue text-white"
                               : "bg-dark-surface"
                           }`}
                         >
-                          <p className="text-sm">{msg.body}</p>
+                          <p className="text-sm">{msg.content}</p>
                           <p
                             className={`text-xs mt-1 ${
-                              msg.from_user_id === session?.user?.id
+                              msg.sender_id === session?.user?.id
                                 ? "text-white/70"
                                 : "text-muted-foreground"
                             }`}

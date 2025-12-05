@@ -21,8 +21,7 @@ const Support = () => {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [priority, setPriority] = useState<"low" | "normal" | "high">("normal");
-  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
-  const [replyMessage, setReplyMessage] = useState("");
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
 
   const { data: session } = useQuery({
     queryKey: ["session"],
@@ -47,63 +46,21 @@ const Support = () => {
     },
   });
 
-  const { data: messages } = useQuery({
-    queryKey: ["support-messages", selectedTicketId],
-    enabled: !!selectedTicketId,
-    queryFn: async () => {
-      const { data: messagesData, error: messagesError } = await supabase
-        .from("support_messages")
-        .select("*")
-        .eq("ticket_id", selectedTicketId!)
-        .order("created_at", { ascending: true });
-
-      if (messagesError) throw messagesError;
-
-      const userIds = [...new Set(messagesData.map((m: any) => m.user_id))];
-      
-      const { data: profilesData, error: profilesError } = await supabase
-        .from("profiles")
-        .select("user_id, username")
-        .in("user_id", userIds);
-
-      if (profilesError) throw profilesError;
-
-      const profilesMap = new Map(profilesData.map((p: any) => [p.user_id, p]));
-
-      return messagesData.map((msg: any) => ({
-        ...msg,
-        profile: profilesMap.get(msg.user_id),
-      }));
-    },
-  });
-
   const createTicketMutation = useMutation({
     mutationFn: async () => {
       if (!session?.user?.id) throw new Error("Oturum bulunamadı");
 
-      const { data: ticket, error: ticketError } = await supabase
+      const { error } = await supabase
         .from("support_tickets")
         .insert({
           user_id: session.user.id,
           subject,
+          message,
           priority,
           status: "open",
-        } as any)
-        .select()
-        .single();
+        });
 
-      if (ticketError) throw ticketError;
-
-      const { error: messageError } = await supabase
-        .from("support_messages")
-        .insert({
-          ticket_id: ticket.id,
-          user_id: session.user.id,
-          message,
-          is_admin_reply: false,
-        } as any);
-
-      if (messageError) throw messageError;
+      if (error) throw error;
     },
     onSuccess: () => {
       toast({ title: "Destek talebi oluşturuldu", description: "Talebiniz en kısa sürede değerlendirilecektir" });
@@ -112,31 +69,6 @@ const Support = () => {
       setSubject("");
       setMessage("");
       setPriority("normal");
-    },
-    onError: (error: Error) => {
-      toast({ title: "Hata", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const sendReplyMutation = useMutation({
-    mutationFn: async () => {
-      if (!session?.user?.id || !selectedTicketId) throw new Error("Geçersiz işlem");
-
-      const { error } = await supabase
-        .from("support_messages")
-        .insert({
-          ticket_id: selectedTicketId,
-          user_id: session.user.id,
-          message: replyMessage,
-          is_admin_reply: false,
-        } as any);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast({ title: "Mesaj gönderildi" });
-      queryClient.invalidateQueries({ queryKey: ["support-messages"] });
-      setReplyMessage("");
     },
     onError: (error: Error) => {
       toast({ title: "Hata", description: error.message, variant: "destructive" });
@@ -252,67 +184,68 @@ const Support = () => {
           </div>
         ) : (
           <div className="grid gap-4">
-            {tickets?.map((ticket: any) => (
-              <Card key={ticket.id} className="cursor-pointer hover:border-primary transition-colors" onClick={() => setSelectedTicketId(ticket.id)}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-xl">{ticket.subject}</CardTitle>
-                      <CardDescription className="mt-1">
-                        {new Date(ticket.created_at).toLocaleDateString("tr-TR")}
-                      </CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      {getStatusBadge(ticket.status)}
-                      {getPriorityBadge(ticket.priority)}
-                    </div>
-                  </div>
-                </CardHeader>
+            {tickets?.length === 0 ? (
+              <Card className="border-glass-border bg-card/50 backdrop-blur-sm">
+                <CardContent className="py-12 text-center">
+                  <MessageSquare className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">Henüz Destek Talebiniz Yok</h3>
+                  <p className="text-muted-foreground">Yeni bir talep oluşturarak destek alabilirsiniz</p>
+                </CardContent>
               </Card>
-            ))}
+            ) : (
+              tickets?.map((ticket: any) => (
+                <Card 
+                  key={ticket.id} 
+                  className="cursor-pointer hover:border-primary transition-colors border-glass-border bg-card/50 backdrop-blur-sm" 
+                  onClick={() => setSelectedTicket(ticket)}
+                >
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-xl">{ticket.subject}</CardTitle>
+                        <CardDescription className="mt-1">
+                          {new Date(ticket.created_at).toLocaleDateString("tr-TR")}
+                        </CardDescription>
+                      </div>
+                      <div className="flex gap-2">
+                        {getStatusBadge(ticket.status)}
+                        {getPriorityBadge(ticket.priority)}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{ticket.message}</p>
+                    {ticket.admin_response && (
+                      <div className="mt-4 p-3 rounded-lg bg-brand-blue/10 border border-brand-blue/20">
+                        <p className="text-xs font-medium text-brand-blue mb-1">Admin Yanıtı:</p>
+                        <p className="text-sm">{ticket.admin_response}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         )}
 
-        <Dialog open={!!selectedTicketId} onOpenChange={(open) => !open && setSelectedTicketId(null)}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <Dialog open={!!selectedTicket} onOpenChange={(open) => !open && setSelectedTicket(null)}>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Destek Talebi Detayları</DialogTitle>
+              <DialogTitle>{selectedTicket?.subject}</DialogTitle>
+              <DialogDescription>
+                {selectedTicket && new Date(selectedTicket.created_at).toLocaleDateString("tr-TR")}
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              {messages?.map((msg: any) => (
-                <div
-                  key={msg.id}
-                  className={`p-4 rounded-lg ${msg.is_admin_reply ? "bg-secondary" : "bg-muted"}`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <MessageSquare className="h-4 w-4" />
-                    <span className="font-semibold">
-                      {msg.is_admin_reply ? "Admin" : msg.profile?.username || "Kullanıcı"}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(msg.created_at).toLocaleString("tr-TR")}
-                    </span>
-                  </div>
-                  <p className="text-sm">{msg.message}</p>
-                </div>
-              ))}
-              <div className="space-y-2">
-                <Label htmlFor="reply">Yanıt</Label>
-                <Textarea
-                  id="reply"
-                  placeholder="Yanıtınızı yazın"
-                  value={replyMessage}
-                  onChange={(e) => setReplyMessage(e.target.value)}
-                  rows={3}
-                />
-                <Button
-                  onClick={() => sendReplyMutation.mutate()}
-                  disabled={!replyMessage || sendReplyMutation.isPending}
-                  className="w-full"
-                >
-                  {sendReplyMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Gönder"}
-                </Button>
+              <div className="p-4 rounded-lg bg-muted">
+                <p className="text-sm">{selectedTicket?.message}</p>
               </div>
+              {selectedTicket?.admin_response && (
+                <div className="p-4 rounded-lg bg-brand-blue/10 border border-brand-blue/20">
+                  <p className="text-xs font-medium text-brand-blue mb-2">Admin Yanıtı:</p>
+                  <p className="text-sm">{selectedTicket.admin_response}</p>
+                </div>
+              )}
             </div>
           </DialogContent>
         </Dialog>

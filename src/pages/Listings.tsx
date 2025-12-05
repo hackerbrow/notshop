@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Star, Eye, Package, Search, User } from "lucide-react";
+import { Star, Eye, Package, Search, User, Flame, Clock, TrendingUp } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Listings = () => {
   const navigate = useNavigate();
@@ -21,28 +22,26 @@ const Listings = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [priceRange, setPriceRange] = useState([0, 5000]);
   const [sortBy, setSortBy] = useState("newest");
+  const [activeTab, setActiveTab] = useState("featured");
 
   const { data: categories } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => {
-      const { data } = await supabase.from("categories").select("*").eq("active", true);
+      const { data } = await supabase.from("categories").select("*").eq("is_active", true).order("display_order");
       return data;
     },
   });
 
   // Set category from URL parameter
   useEffect(() => {
-    const categorySlug = searchParams.get("category");
-    if (categorySlug && categories) {
-      const category = categories.find(c => c.slug === categorySlug);
-      if (category) {
-        setSelectedCategory(category.id);
-      }
+    const categoryId = searchParams.get("category");
+    if (categoryId) {
+      setSelectedCategory(categoryId);
     }
-  }, [searchParams, categories]);
+  }, [searchParams]);
 
   const { data: listings, isLoading } = useQuery({
-    queryKey: ["listings", searchQuery, selectedCategory, priceRange, sortBy],
+    queryKey: ["listings", searchQuery, selectedCategory, priceRange, sortBy, activeTab],
     queryFn: async () => {
       let query = supabase.from("listings").select("*").eq("status", "active");
 
@@ -56,19 +55,20 @@ const Listings = () => {
 
       query = query.gte("price", priceRange[0]).lte("price", priceRange[1]);
 
-      // Always prioritize boosted items
+      // Tab-based filtering
+      if (activeTab === "featured") {
+        query = query.eq("is_featured", true);
+      }
+
+      // Sorting
       if (sortBy === "newest") {
-        query = query.order("boosted_at", { ascending: false, nullsFirst: false })
-                     .order("created_at", { ascending: false });
+        query = query.order("created_at", { ascending: false });
       } else if (sortBy === "price-asc") {
-        query = query.order("boosted_at", { ascending: false, nullsFirst: false })
-                     .order("price", { ascending: true });
+        query = query.order("price", { ascending: true });
       } else if (sortBy === "price-desc") {
-        query = query.order("boosted_at", { ascending: false, nullsFirst: false })
-                     .order("price", { ascending: false });
+        query = query.order("price", { ascending: false });
       } else if (sortBy === "popular") {
-        query = query.order("boosted_at", { ascending: false, nullsFirst: false })
-                     .order("view_count", { ascending: false });
+        query = query.order("views", { ascending: false });
       }
 
       const { data, error } = await query;
@@ -77,8 +77,8 @@ const Listings = () => {
       const userIds = data?.map((l) => l.user_id) || [];
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("user_id, username, seller_score, avatar_url, total_sales, is_verified")
-        .in("user_id", userIds);
+        .select("id, username, rating, avatar_url, total_sales, is_verified")
+        .in("id", userIds);
 
       const { data: roles } = await supabase
         .from("user_roles")
@@ -87,7 +87,7 @@ const Listings = () => {
 
       return data?.map((listing) => ({
         ...listing,
-        profile: profiles?.find((p) => p.user_id === listing.user_id),
+        profile: profiles?.find((p) => p.id === listing.user_id),
         seller_role: roles?.find((r) => r.user_id === listing.user_id)?.role,
       }));
     },
@@ -100,6 +100,54 @@ const Listings = () => {
       <div className="container mx-auto px-4 py-8">
         {/* SEO H1 */}
         <h1 className="sr-only">Oyun Hesabı İlanları - Steam, Valorant, LOL ve Daha Fazlası</h1>
+        
+        {/* Category Quick Links - hesap.com.tr style */}
+        <div className="mb-6 overflow-x-auto pb-2">
+          <div className="flex gap-2 min-w-max">
+            <Button
+              variant={selectedCategory === "all" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedCategory("all")}
+              className={selectedCategory === "all" ? "bg-brand-blue" : "border-glass-border"}
+            >
+              Tümü
+            </Button>
+            {categories?.map((cat) => (
+              <Button
+                key={cat.id}
+                variant={selectedCategory === cat.id ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`flex items-center gap-2 ${selectedCategory === cat.id ? "bg-brand-blue" : "border-glass-border"}`}
+              >
+                {cat.icon && cat.icon.startsWith('http') && (
+                  <img src={cat.icon} alt={cat.name} className="w-4 h-4 object-contain" />
+                )}
+                {cat.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Tabs - hesap.com.tr style */}
+        <div className="mb-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="bg-card/50 border border-glass-border">
+              <TabsTrigger value="featured" className="flex items-center gap-2 data-[state=active]:bg-brand-blue data-[state=active]:text-white">
+                <Flame className="w-4 h-4" />
+                Vitrin İlanlar
+              </TabsTrigger>
+              <TabsTrigger value="popular" className="flex items-center gap-2 data-[state=active]:bg-brand-blue data-[state=active]:text-white">
+                <TrendingUp className="w-4 h-4" />
+                Popüler İlanlar
+              </TabsTrigger>
+              <TabsTrigger value="newest" className="flex items-center gap-2 data-[state=active]:bg-brand-blue data-[state=active]:text-white">
+                <Clock className="w-4 h-4" />
+                Yeni İlanlar
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
         
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Filters Sidebar */}
@@ -121,24 +169,6 @@ const Listings = () => {
                       className="pl-10 bg-dark-surface border-glass-border"
                     />
                   </div>
-                </div>
-
-                {/* Category */}
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Kategori</label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="bg-dark-surface border-glass-border">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Tüm Kategoriler</SelectItem>
-                      {categories?.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 {/* Price Range */}
@@ -177,31 +207,31 @@ const Listings = () => {
           {/* Listings Grid */}
           <div className="flex-1">
             <div className="mb-6">
-              <h1 className="text-3xl font-bold mb-2">
+              <h2 className="text-2xl font-bold mb-2">
                 <span className="bg-gradient-to-r from-brand-blue to-primary bg-clip-text text-transparent">
-                  Tüm İlanlar
+                  {activeTab === "featured" ? "Vitrin İlanlar" : activeTab === "popular" ? "Popüler İlanlar" : "Yeni İlanlar"}
                 </span>
-              </h1>
+              </h2>
               <p className="text-muted-foreground">
                 {listings?.length || 0} ilan bulundu
               </p>
             </div>
 
             {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...Array(6)].map((_, i) => (
-                  <Skeleton key={i} className="h-96" />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {[...Array(10)].map((_, i) => (
+                  <Skeleton key={i} className="h-72" />
                 ))}
               </div>
             ) : listings && listings.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {listings.map((listing) => (
                   <Card
                     key={listing.id}
-                    className="group cursor-pointer border-glass-border bg-card/50 backdrop-blur-sm hover:bg-card hover:border-brand-blue/50 hover:shadow-lg transition-all"
+                    className="group cursor-pointer border-glass-border bg-card/50 backdrop-blur-sm hover:bg-card hover:border-brand-blue/50 hover:shadow-lg transition-all overflow-hidden"
                     onClick={() => navigate(`/listing/${listing.id}`)}
                   >
-                    <div className="relative h-48 overflow-hidden rounded-t-2xl">
+                    <div className="relative aspect-video overflow-hidden">
                       {listing.images?.[0] ? (
                         <img
                           src={listing.images[0]}
@@ -210,19 +240,28 @@ const Listings = () => {
                         />
                       ) : (
                         <div className="w-full h-full bg-gradient-to-br from-brand-blue/10 to-primary/10 flex items-center justify-center">
-                          <Package className="w-12 h-12 text-muted-foreground" />
+                          <Package className="w-10 h-10 text-muted-foreground" />
                         </div>
                       )}
-                      {listing.featured && (
-                        <Badge className="absolute top-2 right-2 bg-gradient-to-r from-brand-blue to-primary">
-                          Öne Çıkan
+                      {listing.is_featured && (
+                        <Badge className="absolute top-2 left-2 bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs">
+                          <Flame className="w-3 h-3 mr-1" />
+                          Vitrin
+                        </Badge>
+                      )}
+                      {listing.profile && listing.profile.total_sales >= 5 && (
+                        <Badge className="absolute top-2 right-2 bg-success-green text-white text-xs">
+                          Çok Satan
                         </Badge>
                       )}
                     </div>
 
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-lg line-clamp-2">{listing.title}</CardTitle>
-                      <CardDescription className="flex items-center gap-2">
+                    <CardContent className="p-3">
+                      <h3 className="font-semibold text-sm line-clamp-2 mb-2 group-hover:text-brand-blue transition-colors">
+                        {listing.title}
+                      </h3>
+                      
+                      <div className="flex items-center gap-1 mb-2 text-xs text-muted-foreground">
                         <Avatar className="w-5 h-5">
                           {listing.profile?.avatar_url && (
                             <AvatarImage src={listing.profile.avatar_url} />
@@ -231,7 +270,7 @@ const Listings = () => {
                             <User className="w-3 h-3" />
                           </AvatarFallback>
                         </Avatar>
-                        <span className="text-xs">@{listing.profile?.username || "kullanıcı"}</span>
+                        <span className="truncate">@{listing.profile?.username || "kullanıcı"}</span>
                         {listing.profile?.is_verified && (
                           <img 
                             src="https://cdn.itemsatis.com/uploads/medals/60760ea5cd37a-medals-2644af7bc00efe5566a2154da9c32c4fc8f643fa.png" 
@@ -248,46 +287,24 @@ const Listings = () => {
                             title="Admin"
                           />
                         )}
-                        {listing.profile && listing.profile.total_sales > 0 && (
-                          <img 
-                            src="https://cdn.itemsatis.com/uploads/medals/alimmagaza.png" 
-                            alt="İlk Satış" 
-                            className="w-4 h-4"
-                            title="İlk Satış"
-                          />
-                        )}
-                        {listing.profile && listing.profile.total_sales >= 10 && (
-                          <img 
-                            src="https://cdn.itemsatis.com/uploads/medals/itemsatissuperstari.png" 
-                            alt="Süper Star" 
-                            className="w-4 h-4"
-                            title="10+ Satış"
-                          />
-                        )}
-                        <div className="flex items-center gap-1 ml-auto">
-                          <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                          <span>{Number(listing.profile?.seller_score || 0).toFixed(1)}</span>
-                        </div>
-                      </CardDescription>
-                    </CardHeader>
+                      </div>
 
-                    <CardContent className="pb-3">
                       <div className="flex items-center justify-between">
-                        <div className="text-2xl font-bold text-brand-blue">
-                          ₺{Number(listing.price).toFixed(2)}
+                        <div className="text-lg font-bold text-brand-blue">
+                          ₺{Number(listing.price).toFixed(0)}
                         </div>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Eye className="w-4 h-4" />
-                          <span>{listing.view_count}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-0.5">
+                            <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                            <span>{Number(listing.profile?.rating || 0).toFixed(1)}</span>
+                          </div>
+                          <div className="flex items-center gap-0.5">
+                            <Eye className="w-3 h-3" />
+                            <span>{listing.views || 0}</span>
+                          </div>
                         </div>
                       </div>
                     </CardContent>
-
-                    <CardFooter>
-                      <Button className="w-full bg-gradient-to-r from-brand-blue to-primary hover:opacity-90">
-                        İncele
-                      </Button>
-                    </CardFooter>
                   </Card>
                 ))}
               </div>

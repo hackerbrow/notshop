@@ -6,7 +6,7 @@ import Footer from "@/components/Footer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Package, Eye, FileText, ShoppingBag } from "lucide-react";
+import { Package, Eye, ShoppingBag } from "lucide-react";
 import { useEffect } from "react";
 import { format } from "date-fns";
 import { ReviewDialog } from "@/components/ReviewDialog";
@@ -14,24 +14,20 @@ import { ReviewDialog } from "@/components/ReviewDialog";
 interface OrderWithDetails {
   id: string;
   created_at: string;
-  price: number;
+  amount: number;
   status: string;
-  delivery_note: string | null;
   seller_id: string;
+  listing_id: string;
   listing: {
     id: string;
     title: string;
     images: string[] | null;
-    auto_delivery: boolean;
-    auto_delivery_content: string | null;
   } | null;
   seller_profile: {
     username: string;
     total_sales: number | null;
   } | null;
-  seller_role: {
-    role: string;
-  } | null;
+  seller_role: string | null;
   review: {
     rating: number;
     comment: string | null;
@@ -55,15 +51,7 @@ const Orders = () => {
     queryFn: async () => {
       const { data: ordersData, error } = await supabase
         .from("orders")
-        .select(`
-          id,
-          created_at,
-          price,
-          status,
-          delivery_note,
-          listing_id,
-          seller_id
-        `)
+        .select("*")
         .eq("buyer_id", session!.user.id)
         .order("created_at", { ascending: false });
 
@@ -74,15 +62,15 @@ const Orders = () => {
       const listingIds = ordersData.map(o => o.listing_id);
       const { data: listingsData } = await supabase
         .from("listings")
-        .select("id, title, images, auto_delivery, auto_delivery_content")
+        .select("id, title, images")
         .in("id", listingIds);
 
       // Fetch seller profiles
       const sellerIds = ordersData.map(o => o.seller_id);
       const { data: profilesData } = await supabase
         .from("profiles")
-        .select("user_id, username, total_sales")
-        .in("user_id", sellerIds);
+        .select("id, username, total_sales")
+        .in("id", sellerIds);
 
       // Fetch reviews for these orders
       const orderIds = ordersData.map(o => o.id);
@@ -101,13 +89,18 @@ const Orders = () => {
       // Merge data
       const enrichedOrders: OrderWithDetails[] = ordersData.map(order => {
         const listing = listingsData?.find(l => l.id === order.listing_id);
-        const seller_profile = profilesData?.find(p => p.user_id === order.seller_id);
-        const seller_role = rolesData?.find(r => r.user_id === order.seller_id);
+        const seller_profile = profilesData?.find(p => p.id === order.seller_id);
+        const seller_role = rolesData?.find(r => r.user_id === order.seller_id)?.role;
         const review = reviewsData?.find(r => r.order_id === order.id);
         return {
-          ...order,
+          id: order.id,
+          created_at: order.created_at || '',
+          amount: order.amount,
+          status: order.status || 'pending',
+          seller_id: order.seller_id,
+          listing_id: order.listing_id,
           listing: listing || null,
-          seller_profile: seller_profile || null,
+          seller_profile: seller_profile ? { username: seller_profile.username, total_sales: seller_profile.total_sales } : null,
           seller_role: seller_role || null,
           review: review || null,
         };
@@ -205,7 +198,7 @@ const Orders = () => {
                         </CardTitle>
                         <div className="flex items-center gap-1 text-sm text-muted-foreground mb-2">
                           <span>Satıcı: @{order.seller_profile?.username || "kullanıcı"}</span>
-                          {order.seller_role?.role === 'admin' && (
+                          {order.seller_role === 'admin' && (
                             <img 
                               src="https://cdn.itemsatis.com/uploads/medals/60760ea5cd37a-medals-2644af7bc00efe5566a2154da9c32c4fc8f643fa.png" 
                               alt="Admin Rozeti" 
@@ -230,52 +223,17 @@ const Orders = () => {
                     <div className="text-right">
                       {getStatusBadge(order.status)}
                       <p className="text-2xl font-bold text-brand-blue mt-2">
-                        ₺{Number(order.price).toFixed(2)}
+                        ₺{Number(order.amount).toFixed(2)}
                       </p>
                     </div>
                   </div>
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  {/* Otomatik Teslimat */}
-                  {order.listing?.auto_delivery && order.listing.auto_delivery_content && (
-                    <div className="p-4 rounded-lg bg-success-green/10 border border-success-green/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FileText className="w-4 h-4 text-success-green" />
-                        <h4 className="font-semibold text-success-green">Otomatik Teslimat</h4>
-                      </div>
-                      <div className="bg-card/50 p-3 rounded border border-glass-border">
-                        <pre className="text-sm font-mono whitespace-pre-wrap break-all">
-                          {order.listing.auto_delivery_content}
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Teslimat Notu */}
-                  {order.delivery_note && (
-                    <div className="p-4 rounded-lg bg-muted/50 border border-glass-border">
-                      <div className="flex items-center gap-2 mb-2">
-                        <FileText className="w-4 h-4 text-muted-foreground" />
-                        <h4 className="font-semibold">Teslimat Notu</h4>
-                      </div>
-                      <p className="text-sm">{order.delivery_note}</p>
-                    </div>
-                  )}
-
-                  {/* Sipariş Detayları */}
-                  {!order.listing?.auto_delivery && !order.delivery_note && order.status === "paid" && (
-                    <div className="p-4 rounded-lg bg-warning-amber/10 border border-warning-amber/20 text-sm">
-                      <p className="text-warning-amber">
-                        Satıcı siparişinizi hazırlıyor. Teslimat bilgileri yakında burada görünecek.
-                      </p>
-                    </div>
-                  )}
-
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
-                      onClick={() => navigate(`/listing/${order.listing?.id}`)}
+                      onClick={() => navigate(`/listing/${order.listing_id}`)}
                       className="flex-1"
                     >
                       <Eye className="w-4 h-4 mr-2" />
@@ -283,7 +241,7 @@ const Orders = () => {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => navigate(`/messages?user=${order.seller_profile?.username}`)}
+                      onClick={() => navigate(`/messages?user=${order.seller_id}`)}
                       className="flex-1"
                     >
                       Satıcıya Mesaj Gönder
