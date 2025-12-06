@@ -40,9 +40,14 @@ const Index = () => {
         <TrustBadges />
       </section>
 
-      {/* Featured Listings */}
+      {/* Recent Listings */}
       <section className="py-16 bg-gradient-to-b from-background to-muted/10">
         <div className="container mx-auto px-4">
+          <h2 className="text-2xl font-bold mb-6">
+            <span className="bg-gradient-to-r from-brand-blue to-primary bg-clip-text text-transparent">
+              Son Eklenen İlanlar
+            </span>
+          </h2>
           <FeaturedListings />
         </div>
       </section>

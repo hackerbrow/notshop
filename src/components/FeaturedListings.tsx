@@ -31,13 +31,12 @@ const FeaturedListings = () => {
   const navigate = useNavigate();
   
   const { data: listings, isLoading } = useQuery({
-    queryKey: ["featured-listings"],
+    queryKey: ["recent-listings"],
     queryFn: async () => {
       const { data: listingsData, error } = await supabase
         .from("listings")
         .select("*")
         .eq("status", "active")
-        .eq("is_featured", true)
         .order("created_at", { ascending: false })
         .limit(10);
 
