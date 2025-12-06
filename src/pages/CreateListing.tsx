@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Switch } from "@/components/ui/switch";
+
 
 const CreateListing = () => {
   const navigate = useNavigate();
@@ -22,11 +22,6 @@ const CreateListing = () => {
     description: "",
     price: "",
     category_id: "",
-    platform: "",
-    tags: "",
-    stock: "1",
-    auto_delivery: false,
-    auto_delivery_content: "",
   });
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreview, setImagePreview] = useState<string[]>([]);
@@ -70,14 +65,9 @@ const CreateListing = () => {
     if (existingListing) {
       setFormData({
         title: existingListing.title,
-        description: existingListing.description,
+        description: existingListing.description || "",
         price: existingListing.price.toString(),
-        category_id: existingListing.category_id,
-        platform: "",
-        tags: "",
-        stock: "1",
-        auto_delivery: false,
-        auto_delivery_content: "",
+        category_id: existingListing.category_id || "",
       });
       
       // Set existing images as preview
@@ -166,13 +156,8 @@ const CreateListing = () => {
       title: formData.title,
       description: formData.description,
       price: parseFloat(formData.price),
-      category_id: formData.category_id,
-      platform: formData.platform,
-      stock: parseInt(formData.stock),
-      tags: formData.tags.split(",").map(t => t.trim()).filter(t => t),
+      category_id: formData.category_id || null,
       images: allImages,
-      auto_delivery: formData.auto_delivery,
-      auto_delivery_content: formData.auto_delivery_content,
       status: "active" as const,
     };
 
@@ -264,23 +249,8 @@ const CreateListing = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="stock">Stok Adedi *</Label>
-                  <Input
-                    id="stock"
-                    type="number"
-                    value={formData.stock}
-                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
-                    placeholder="1"
-                    required
-                    className="bg-dark-surface border-glass-border"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
                   <Label htmlFor="category">Kategori *</Label>
-                  <Select value={formData.category_id} onValueChange={(value) => setFormData({ ...formData, category_id: value })} required>
+                  <Select value={formData.category_id} onValueChange={(value) => setFormData({ ...formData, category_id: value })}>
                     <SelectTrigger className="bg-dark-surface border-glass-border">
                       <SelectValue placeholder="Kategori seçin" />
                     </SelectTrigger>
@@ -292,17 +262,6 @@ const CreateListing = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="platform">Platform</Label>
-                  <Input
-                    id="platform"
-                    value={formData.platform}
-                    onChange={(e) => setFormData({ ...formData, platform: e.target.value })}
-                    placeholder="PC, Mobile, Console"
-                    className="bg-dark-surface border-glass-border"
-                  />
                 </div>
               </div>
 
@@ -333,45 +292,6 @@ const CreateListing = () => {
                   </div>
                 )}
               </div>
-
-              <div>
-                <Label htmlFor="tags">Etiketler</Label>
-                <Input
-                  id="tags"
-                  value={formData.tags}
-                  onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                  placeholder="Steam, Premium, CS2 (virgülle ayırın)"
-                  className="bg-dark-surface border-glass-border"
-                />
-              </div>
-
-              <div className="flex items-center justify-between p-4 rounded-lg bg-dark-surface/50">
-                <div>
-                  <Label htmlFor="auto-delivery">Otomatik Teslimat</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Ödeme sonrası otomatik teslim edilsin
-                  </p>
-                </div>
-                <Switch
-                  id="auto-delivery"
-                  checked={formData.auto_delivery}
-                  onCheckedChange={(checked) => setFormData({ ...formData, auto_delivery: checked })}
-                />
-              </div>
-
-              {formData.auto_delivery && (
-                <div>
-                  <Label htmlFor="auto-content">Otomatik Teslimat İçeriği</Label>
-                  <Textarea
-                    id="auto-content"
-                    value={formData.auto_delivery_content}
-                    onChange={(e) => setFormData({ ...formData, auto_delivery_content: e.target.value })}
-                    placeholder="Kullanıcı adı, şifre veya kod bilgisi"
-                    rows={3}
-                    className="bg-dark-surface border-glass-border"
-                  />
-                </div>
-              )}
 
               <div className="flex gap-3">
                 <Button
