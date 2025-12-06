@@ -19,10 +19,10 @@ const Navbar = () => {
     queryFn: async () => {
       const {
         data: profile
-      } = await supabase.from("profiles").select("*").eq("id", session!.user.id).single();
+      } = await supabase.from("profiles").select("*").eq("id", session!.user.id).maybeSingle();
       const {
         data: wallet
-      } = await supabase.from("wallets").select("balance").eq("user_id", session!.user.id).single();
+      } = await supabase.from("wallets").select("balance").eq("user_id", session!.user.id).maybeSingle();
       return {
         ...profile,
         balance: wallet?.balance || 0
