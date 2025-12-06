@@ -81,13 +81,23 @@ const Profile = () => {
     queryFn: async () => {
       const { data } = await supabase
         .from("reviews")
-        .select(`
-          *,
-          reviewer:profiles!reviews_reviewer_id_fkey(username, avatar_url)
-        `)
+        .select("*")
         .eq("reviewed_user_id", session!.user.id)
         .order("created_at", { ascending: false });
-      return data;
+      
+      if (!data || data.length === 0) return [];
+      
+      // Fetch reviewer profiles separately
+      const reviewerIds = data.map(r => r.reviewer_id);
+      const { data: reviewerProfiles } = await supabase
+        .from("profiles")
+        .select("id, username, avatar_url")
+        .in("id", reviewerIds);
+      
+      return data.map(review => ({
+        ...review,
+        reviewer: reviewerProfiles?.find(p => p.id === review.reviewer_id)
+      }));
     },
   });
 
