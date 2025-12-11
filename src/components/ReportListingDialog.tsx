@@ -50,7 +50,7 @@ export const ReportListingDialog = ({ listingId, listingTitle }: ReportListingDi
         reporter_id: session.session.user.id,
         listing_id: listingId,
         reason,
-        details,
+        description: details,
         status: "pending",
       });
 
